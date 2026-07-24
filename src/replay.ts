@@ -95,7 +95,7 @@ export class ReplayRecorder {
                     Authorization: `Bearer ${this.apiKey}`,
                 },
                 body: JSON.stringify(payload),
-                keepalive: true,
+                // keepalive: true,
             }).catch(() => {
                 // Best-effort — losing a replay recording should never surface to
                 // the host app or affect its behavior.
