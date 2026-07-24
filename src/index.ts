@@ -5,6 +5,7 @@ import { getOrCreateSession } from "./session.js";
 import { patchConsole } from "./console.js";
 import { patchErrorHandlers } from "./errors.js";
 import { patchFetch, patchAxios } from "./network.js";
+import { ReplayRecorder } from "./replay.js";  // >>> CHANGED — new import <
 
 const DEFAULT_STATUS_CODES = [500, 501, 502, 503, 504];
 
@@ -14,6 +15,7 @@ class DebugFlowSDK {
   private session?: ReturnType<typeof getOrCreateSession>;
   private flushTimer?: ReturnType<typeof setInterval>;
   private unpatchFns: Array<() => void> = [];
+  private replayRecorder?: ReplayRecorder;  // >>> CHANGED — new field <
   private initialized = false;
 
   init(config: DebugFlowConfig) {
@@ -41,14 +43,51 @@ class DebugFlowSDK {
       captureResponseBody: config.captureResponseBody ?? false,
     };
 
-    this.unpatchFns.push(
-      patchConsole((event) => this.buffer!.addConsoleLog(event)),
+    // >>> CHANGED — restructured from a single push(...) call into an array
+    // so console patching could be made conditional (see below). The
+    // errorHandlers callback also changed: it now calls
+    // this.replayRecorder?.captureOnError() in addition to flush(). <
+    const patches: Array<() => void> = [
       patchErrorHandlers(
-        (event) => this.buffer!.addError(event),
-        () => this.flush(), // flush immediately on a fatal error
+          (event) => this.buffer!.addError(event),
+          () => {
+            this.flush(); // flush the normal log buffer immediately on a fatal error
+            this.replayRecorder?.captureOnError(); // and ship the replay-around-the-error, if enabled
+          },
       ),
       patchFetch((event) => this.buffer!.addNetworkLog(event), networkOpts),
-    );
+    ];
+
+    // >>> CHANGED — console patching is now conditional (added later, for
+    // the separate "disable console logging" request — not part of the
+    // replay work, but shown here since it's in the live file) <
+    if (config.captureConsole ?? true) {
+      const allowedLevels = config.consoleLevels;
+      patches.push(
+          patchConsole((event) => {
+            if (allowedLevels && !allowedLevels.includes(event.level)) return;
+            this.buffer!.addConsoleLog(event);
+          }),
+      );
+    }
+
+    this.unpatchFns.push(...patches);
+
+    // >>> CHANGED — new block: starts the replay recorder <
+    if (config.enableReplay ?? true) {
+      this.replayRecorder = new ReplayRecorder(config.apiKey, config.endpoint, this.session.id);
+      this.replayRecorder.start();
+    }
+
+
+    // this.unpatchFns.push(
+    //   patchConsole((event) => this.buffer!.addConsoleLog(event)),
+    //   patchErrorHandlers(
+    //     (event) => this.buffer!.addError(event),
+    //     () => this.flush(), // flush immediately on a fatal error
+    //   ),
+    //   patchFetch((event) => this.buffer!.addNetworkLog(event), networkOpts),
+    // );
 
     this.flushTimer = setInterval(() => this.flush(), config.flushIntervalMs ?? 7000);
 
@@ -109,6 +148,7 @@ class DebugFlowSDK {
     window.removeEventListener("pagehide", this.handlePageHide);
     this.unpatchFns.forEach((fn) => fn());
     this.unpatchFns = [];
+    this.replayRecorder?.stop();  // >>> CHANGED — new line, stops the recorder <
     this.initialized = false;
   }
 }
