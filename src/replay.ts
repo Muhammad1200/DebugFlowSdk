@@ -1,6 +1,6 @@
-// >>> ENTIRE FILE IS NEW <
 import { record } from "rrweb";
 import type { eventWithTime } from "@rrweb/types";
+import { API_ENDPOINTS } from "./endpoints.js";
 
 // How far back the rolling buffer reaches. rrweb's checkoutEveryNms forces
 // a full DOM snapshot on this interval, and the buffer resets to start at
@@ -31,8 +31,8 @@ export class ReplayRecorder {
     private sessionId: string;
 
     constructor(apiKey: string, endpoint: string | undefined, sessionId: string) {
-        const base = (endpoint ?? "https://api.debugflow.dev").replace(/\/$/, "");
-        this.endpoint = `${base}/v1/replay`;
+        // const base = (endpoint ?? API_ENDPOINTS).replace(/\/$/, "");
+        this.endpoint = API_ENDPOINTS?.replay;  //`${base}/v1/replay`;
         this.apiKey = apiKey;
         this.sessionId = sessionId;
     }

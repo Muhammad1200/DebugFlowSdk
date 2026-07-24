@@ -1,6 +1,7 @@
 import type { IngestPayload } from "./types.js";
+import { API_ENDPOINTS } from "./endpoints.js";
 
-const DEFAULT_ENDPOINT = "https://52-70-105-56.sslip.io/v1/ingest";
+const DEFAULT_ENDPOINT = API_ENDPOINTS?.ingest;//`${API_ENDPOINTS}/v1/ingest`;
 
 export class Transport {
   constructor(
